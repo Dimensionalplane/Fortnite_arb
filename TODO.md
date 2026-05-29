@@ -9,8 +9,9 @@
 - [x] Create a `requirements.txt` file for dependencies.
 - [x] Integrate a logging system for the scanner.
 - [x] Implement scanning of multiple items from a configuration file.
-- [ ] Develop price comparison logic for arbitrage detection.
-- [ ] Implement automated reporting/notifications.
+- [x] Develop price comparison logic for arbitrage detection.
+- [ ] Implement automated reporting/notifications (Discord/Email).
+- [ ] Add support for item-specific currency settings.
 
 ## Bug Fixes
 - None currently identified.

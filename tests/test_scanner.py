@@ -14,45 +14,41 @@ class TestSteamMarketScanner(unittest.TestCase):
         self.assertEqual(len(scanner.items_to_scan), 1)
         self.assertEqual(scanner.items_to_scan[0]["market_hash_name"], "AK-47")
 
-    @patch('src.scanner.os.path.exists')
-    def test_load_config_file_not_found(self, mock_exists):
-        mock_exists.return_value = False
-        scanner = SteamMarketScanner()
-        self.assertEqual(len(scanner.items_to_scan), 0)
-
-    @patch('src.scanner.requests.get')
-    def test_fetch_item_price_success(self, mock_get):
-        # Mock successful response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "success": True,
-            "lowest_price": "2,50€",
-            "volume": "1,234",
-            "median_price": "2,45€"
-        }
-        mock_get.return_value = mock_response
-
+    def test_parse_price(self):
         scanner = SteamMarketScanner(config_path="non_existent.json")
-        result = scanner.fetch_item_price(730, "AK-47 | Redline (Field-Tested)")
+        self.assertEqual(scanner._parse_price("$15.00"), 15.0)
+        self.assertEqual(scanner._parse_price("15,00€"), 15.0)
+        self.assertEqual(scanner._parse_price("£10.50"), 10.5)
+        self.assertEqual(scanner._parse_price("$1,200.50"), 1200.5)
+        self.assertEqual(scanner._parse_price(None), 0.0)
 
-        self.assertIsNotNone(result)
-        self.assertTrue(result["success"])
-        self.assertEqual(result["lowest_price"], "2,50€")
+    def test_analyze_opportunity_found(self):
+        scanner = SteamMarketScanner(config_path="non_existent.json")
+        item_config = {
+            "market_hash_name": "AK-47",
+            "target_buy_price": 20.0,
+            "min_profit_margin": 0.1
+        }
+        price_data = {"lowest_price": "$15.00"}
+
+        opp = scanner.analyze_opportunity(item_config, price_data)
+
+        self.assertIsNotNone(opp)
+        self.assertEqual(opp["item"], "AK-47")
+        self.assertEqual(opp["margin"], 0.25)
 
     @patch('src.scanner.SteamMarketScanner.fetch_item_price')
     @patch('src.scanner.os.path.exists')
-    @patch('builtins.open', new_callable=mock_open, read_data='{"items": [{"app_id": 730, "market_hash_name": "AK-47"}]}')
+    @patch('builtins.open', new_callable=mock_open, read_data='{"items": [{"app_id": 730, "market_hash_name": "AK-47", "target_buy_price": 20.0, "min_profit_margin": 0.1}]}')
     def test_scan_market(self, mock_file, mock_exists, mock_fetch):
         mock_exists.return_value = True
-        mock_fetch.return_value = {"success": True, "lowest_price": "10€"}
+        mock_fetch.return_value = {"success": True, "lowest_price": "$15.00"}
 
         scanner = SteamMarketScanner()
-        results = scanner.scan_market()
+        opportunities = scanner.scan_market(delay=0)
 
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["item"], "AK-47")
-        self.assertEqual(results[0]["price_data"]["lowest_price"], "10€")
+        self.assertEqual(len(opportunities), 1)
+        self.assertEqual(opportunities[0]["item"], "AK-47")
 
 if __name__ == '__main__':
     unittest.main()

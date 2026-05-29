@@ -2,6 +2,8 @@ import logging
 import requests
 import json
 import os
+import re
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -19,8 +21,7 @@ class SteamMarketScanner:
     A scanner for the Steam Market to identify arbitrage opportunities.
     """
 
-    def __init__(self, api_key=None, config_path="config/items.json"):
-        self.api_key = api_key
+    def __init__(self, config_path="config/items.json"):
         self.config_path = config_path
         self.base_url = "https://steamcommunity.com/market/priceoverview/"
         self.items_to_scan = self._load_config()
@@ -44,6 +45,30 @@ class SteamMarketScanner:
             logger.error(f"Error loading configuration: {e}")
             return []
 
+    def _parse_price(self, price_str):
+        """
+        Parses a price string (e.g., "$15.00", "15,00€", "$1,200.50") into a float.
+        """
+        if not price_str:
+            return 0.0
+
+        # Remove currency symbols and handle thousands separators
+        # We assume standard English formatting for now, but handle European decimal comma
+        cleaned = re.sub(r'[^\d,.]', '', price_str)
+
+        if ',' in cleaned and '.' in cleaned:
+            # Assume 1,200.50 format
+            cleaned = cleaned.replace(',', '')
+        elif ',' in cleaned:
+            # Assume 15,00 format
+            cleaned = cleaned.replace(',', '.')
+
+        try:
+            return float(cleaned)
+        except ValueError:
+            logger.error(f"Could not parse price string: {price_str}")
+            return 0.0
+
     def fetch_item_price(self, app_id, market_hash_name, currency=1):
         """
         Fetches the current price of an item from the Steam Market.
@@ -53,7 +78,7 @@ class SteamMarketScanner:
             "market_hash_name": market_hash_name,
             "currency": currency
         }
-        logger.info(f"Fetching price for item: {market_hash_name} (App ID: {app_id})")
+        logger.debug(f"Fetching price for item: {market_hash_name}")
 
         try:
             response = requests.get(self.base_url, params=params)
@@ -61,30 +86,63 @@ class SteamMarketScanner:
             data = response.json()
 
             if data.get("success"):
-                logger.info(f"Successfully fetched price for {market_hash_name}: {data.get('lowest_price')}")
                 return data
             else:
                 logger.warning(f"Failed to fetch price for {market_hash_name}: Success flag False")
                 return None
         except requests.RequestException as e:
-            logger.error(f"Error fetching price for {market_hash_name}: {e}")
+            if response.status_code == 429:
+                logger.error("Rate limit hit (429). Consider increasing delay.")
+            else:
+                logger.error(f"Error fetching price for {market_hash_name}: {e}")
             return None
 
-    def scan_market(self):
+    def analyze_opportunity(self, item_config, price_data):
+        """
+        Analyzes a single item for arbitrage opportunities.
+        """
+        lowest_price = self._parse_price(price_data.get("lowest_price"))
+        target_buy_price = item_config.get("target_buy_price", 0.0)
+        min_profit_margin = item_config.get("min_profit_margin", 0.0)
+
+        if lowest_price > 0 and lowest_price <= target_buy_price:
+            profit = target_buy_price - lowest_price
+            margin = profit / target_buy_price if target_buy_price > 0 else 0
+
+            if margin >= min_profit_margin:
+                logger.info(f"ARBITRAGE OPPORTUNITY FOUND: {item_config.get('market_hash_name')}")
+                logger.info(f"  Current Price: {price_data.get('lowest_price')} ({lowest_price})")
+                logger.info(f"  Target Price: {target_buy_price}")
+                logger.info(f"  Estimated Margin: {margin:.2%}")
+                return {
+                    "item": item_config.get("market_hash_name"),
+                    "current_price": lowest_price,
+                    "target_price": target_buy_price,
+                    "margin": margin
+                }
+        return None
+
+    def scan_market(self, delay=1.0):
         """
         Scans the market for all items defined in the configuration.
         """
         logger.info(f"Scanning market for {len(self.items_to_scan)} items.")
-        results = []
+        opportunities = []
         for item in self.items_to_scan:
             app_id = item.get("app_id")
             market_hash_name = item.get("market_hash_name")
             if app_id and market_hash_name:
                 price_data = self.fetch_item_price(app_id, market_hash_name)
                 if price_data:
-                    results.append({
-                        "item": market_hash_name,
-                        "app_id": app_id,
-                        "price_data": price_data
-                    })
-        return results
+                    opp = self.analyze_opportunity(item, price_data)
+                    if opp:
+                        opportunities.append(opp)
+                # Polite rate limiting
+                time.sleep(delay)
+
+        logger.info(f"Scan complete. Found {len(opportunities)} opportunities.")
+        return opportunities
+
+if __name__ == "__main__":
+    scanner = SteamMarketScanner()
+    scanner.scan_market()
