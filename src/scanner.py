@@ -4,6 +4,8 @@ import json
 import os
 import re
 import time
+from datetime import datetime
+
 try:
     from src.notifier import NotificationManager
 except ImportError:
@@ -25,8 +27,9 @@ class SteamMarketScanner:
     A scanner for the Steam Market to identify arbitrage opportunities.
     """
 
-    def __init__(self, config_path="config/items.json"):
+    def __init__(self, config_path="config/items.json", history_path="data/scan_history.json"):
         self.config_path = config_path
+        self.history_path = history_path
         self.base_url = "https://steamcommunity.com/market/priceoverview/"
         self.config = self._load_config()
         self.items_to_scan = self.config.get("items", [])
@@ -81,11 +84,37 @@ class SteamMarketScanner:
                     "app_id": item_config.get("app_id"),
                     "current_price": lowest_price,
                     "target_price": target_buy_price,
-                    "margin": margin
+                    "margin": margin,
+                    "timestamp": datetime.now().isoformat()
                 }
                 logger.info(f"ARBITRAGE OPPORTUNITY FOUND: {opp['item']} - Margin: {margin:.2%}")
                 return opp
         return None
+
+    def _save_to_history(self, opportunities):
+        if not opportunities:
+            return
+
+        history = []
+        if os.path.exists(self.history_path):
+            try:
+                with open(self.history_path, 'r') as f:
+                    history = json.load(f)
+                    if not isinstance(history, list):
+                        history = []
+            except (json.JSONDecodeError, IOError):
+                history = []
+
+        history.extend(opportunities)
+        history = history[-100:]
+
+        try:
+            os.makedirs(os.path.dirname(self.history_path), exist_ok=True)
+            with open(self.history_path, 'w') as f:
+                json.dump(history, f, indent=4)
+            logger.info(f"Saved {len(opportunities)} items to history.")
+        except IOError as e:
+            logger.error(f"Failed to save history: {e}")
 
     def scan_market(self, delay=1.0):
         logger.info(f"Scanning market for {len(self.items_to_scan)} items.")
@@ -101,6 +130,11 @@ class SteamMarketScanner:
                         opportunities.append(opp)
                         self.notifier.notify_all(opp)
                 time.sleep(delay)
+
+        if opportunities:
+            self.notifier.send_summary_report(opportunities)
+            self._save_to_history(opportunities)
+
         logger.info(f"Scan complete. Found {len(opportunities)} opportunities.")
         return opportunities
 

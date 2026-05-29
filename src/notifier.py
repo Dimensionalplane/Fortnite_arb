@@ -42,6 +42,34 @@ class NotificationManager:
             logger.error(f"Discord error: {e}")
             return False
 
+    def send_summary_report(self, opportunities):
+        """
+        Sends an aggregated report of all opportunities found in a single scan.
+        """
+        if not self.discord_url or not opportunities:
+            return False
+
+        fields = []
+        for opp in opportunities:
+            fields.append({"name": opp['item'], "value": f"Price: {opp['current_price']} | Margin: {opp['margin']:.2%}", "inline": False})
+
+        payload = {
+            "embeds": [{
+                "title": f"📊 Scan Summary: {len(opportunities)} Opportunities Found",
+                "color": 3447003, # Blue
+                "fields": fields[:25],
+                "footer": {"text": "Steam Market Arb Bot"}
+            }]
+        }
+
+        try:
+            requests.post(self.discord_url, json=payload).raise_for_status()
+            logger.info(f"Scan summary report sent to Discord with {len(opportunities)} items.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send summary report: {e}")
+            return False
+
     def send_email(self, opportunity):
         if not self.email_config.get("enabled"):
             return False
@@ -52,15 +80,7 @@ class NotificationManager:
             msg['To'] = self.email_config.get("receiver")
             msg['Subject'] = f"Arbitrage Alert: {opportunity['item']}"
 
-            body = f"""
-            Arbitrage Opportunity Found!
-
-            Item: {opportunity['item']}
-            App ID: {opportunity.get('app_id')}
-            Current Price: {opportunity['current_price']}
-            Target Price: {opportunity['target_price']}
-            Margin: {opportunity['margin']:.2%}
-            """
+            body = f"Arbitrage Opportunity Found!\n\nItem: {opportunity['item']}\nMargin: {opportunity['margin']:.2%}"
             msg.attach(MIMEText(body, 'plain'))
 
             server = smtplib.SMTP(self.email_config.get("smtp_server"), self.email_config.get("smtp_port"))

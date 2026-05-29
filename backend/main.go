@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"backend/orchestration"
@@ -53,11 +54,23 @@ func handleSystemStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(statuses)
 }
 
+func handleArbitrageHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	data, err := os.ReadFile("data/scan_history.json")
+	if err != nil {
+		w.Write([]byte("[]"))
+		return
+	}
+	w.Write(data)
+}
+
 func main() {
-	// Start the Shadow Pilot Diff Monitor
 	orchestration.StartDiffMonitor()
 
 	http.HandleFunc("/api/system/status", handleSystemStatus)
+	http.HandleFunc("/api/arbitrage/history", handleArbitrageHistory)
 	http.HandleFunc("/api/check-session", orchestration.HandleCheckSession)
 	http.HandleFunc("/api/issues", orchestration.HandleIssues)
 	http.HandleFunc("/api/index-codebase", orchestration.HandleIndexCodebase)

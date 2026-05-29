@@ -1,9 +1,9 @@
 {
   "name": "digital-asset-arbitrage",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "scripts": {
     "start:backend": "go run backend/main.go",
     "start:frontend": "cd frontend && npm run dev",
-    "update-version": "echo 0.5.0 > VERSION.md"
+    "update-version": "node -e \"const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json')); fs.writeFileSync('VERSION.md', pkg.version + '\\n');\""
   }
 }
