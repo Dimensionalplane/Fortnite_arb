@@ -35,3 +35,4 @@ ENV/
 # Project specific
 steam_api_key.txt
 scanner.log
+backend.log

@@ -10,8 +10,10 @@
 - [x] Integrate a logging system for the scanner.
 - [x] Implement scanning of multiple items from a configuration file.
 - [x] Develop price comparison logic for arbitrage detection.
-- [ ] Implement automated reporting/notifications (Discord/Email).
+- [x] Implement automated reporting/notifications (Discord).
+- [x] Develop a live System Observability Dashboard (Go + React).
 - [ ] Add support for item-specific currency settings.
+- [ ] Implement asynchronous scanning for performance.
 
 ## Bug Fixes
 - None currently identified.

@@ -6,8 +6,9 @@
 - [x] Develop initial price comparison algorithms.
 
 ## Phase 2: Automation & Scaling
+- [x] Implement automated opportunity detection and notification (Discord).
+- [x] Develop a live System Observability Dashboard (Go + React).
 - [ ] Integrate with external APIs for deeper market analysis.
-- [ ] Automate opportunity detection and notification (e.g., email/Discord).
 - [ ] Expand to multiple digital asset categories.
 
 ## Phase 3: Advanced Arbitrage & Security
