@@ -18,5 +18,8 @@
             "target_buy_price": 1.00,
             "min_profit_margin": 0.20
         }
-    ]
+    ],
+    "notifications": {
+        "discord_webhook_url": ""
+    }
 }

@@ -4,6 +4,10 @@ import json
 import os
 import re
 import time
+try:
+    from src.notifier import DiscordNotifier
+except ImportError:
+    from notifier import DiscordNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -24,26 +28,28 @@ class SteamMarketScanner:
     def __init__(self, config_path="config/items.json"):
         self.config_path = config_path
         self.base_url = "https://steamcommunity.com/market/priceoverview/"
-        self.items_to_scan = self._load_config()
+        self.config = self._load_config()
+        self.items_to_scan = self.config.get("items", [])
+
+        webhook_url = self.config.get("notifications", {}).get("discord_webhook_url")
+        self.notifier = DiscordNotifier(webhook_url)
+
         logger.info("SteamMarketScanner initialized.")
 
     def _load_config(self):
         """
-        Loads the list of items to scan from the configuration file.
+        Loads the configuration from the JSON file.
         """
         if not os.path.exists(self.config_path):
             logger.warning(f"Configuration file not found: {self.config_path}")
-            return []
+            return {}
 
         try:
             with open(self.config_path, 'r') as f:
-                config = json.load(f)
-                items = config.get("items", [])
-                logger.info(f"Loaded {len(items)} items from configuration.")
-                return items
+                return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             logger.error(f"Error loading configuration: {e}")
-            return []
+            return {}
 
     def _parse_price(self, price_str):
         """
@@ -52,15 +58,11 @@ class SteamMarketScanner:
         if not price_str:
             return 0.0
 
-        # Remove currency symbols and handle thousands separators
-        # We assume standard English formatting for now, but handle European decimal comma
         cleaned = re.sub(r'[^\d,.]', '', price_str)
 
         if ',' in cleaned and '.' in cleaned:
-            # Assume 1,200.50 format
             cleaned = cleaned.replace(',', '')
         elif ',' in cleaned:
-            # Assume 15,00 format
             cleaned = cleaned.replace(',', '.')
 
         try:
@@ -78,7 +80,6 @@ class SteamMarketScanner:
             "market_hash_name": market_hash_name,
             "currency": currency
         }
-        logger.debug(f"Fetching price for item: {market_hash_name}")
 
         try:
             response = requests.get(self.base_url, params=params)
@@ -91,10 +92,7 @@ class SteamMarketScanner:
                 logger.warning(f"Failed to fetch price for {market_hash_name}: Success flag False")
                 return None
         except requests.RequestException as e:
-            if response.status_code == 429:
-                logger.error("Rate limit hit (429). Consider increasing delay.")
-            else:
-                logger.error(f"Error fetching price for {market_hash_name}: {e}")
+            logger.error(f"Error fetching price for {market_hash_name}: {e}")
             return None
 
     def analyze_opportunity(self, item_config, price_data):
@@ -110,16 +108,15 @@ class SteamMarketScanner:
             margin = profit / target_buy_price if target_buy_price > 0 else 0
 
             if margin >= min_profit_margin:
-                logger.info(f"ARBITRAGE OPPORTUNITY FOUND: {item_config.get('market_hash_name')}")
-                logger.info(f"  Current Price: {price_data.get('lowest_price')} ({lowest_price})")
-                logger.info(f"  Target Price: {target_buy_price}")
-                logger.info(f"  Estimated Margin: {margin:.2%}")
-                return {
+                opp = {
                     "item": item_config.get("market_hash_name"),
+                    "app_id": item_config.get("app_id"),
                     "current_price": lowest_price,
                     "target_price": target_buy_price,
                     "margin": margin
                 }
+                logger.info(f"ARBITRAGE OPPORTUNITY FOUND: {opp['item']} - Margin: {margin:.2%}")
+                return opp
         return None
 
     def scan_market(self, delay=1.0):
@@ -137,7 +134,7 @@ class SteamMarketScanner:
                     opp = self.analyze_opportunity(item, price_data)
                     if opp:
                         opportunities.append(opp)
-                # Polite rate limiting
+                        self.notifier.send_notification(opp)
                 time.sleep(delay)
 
         logger.info(f"Scan complete. Found {len(opportunities)} opportunities.")
