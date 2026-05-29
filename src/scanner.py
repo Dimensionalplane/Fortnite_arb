@@ -5,9 +5,9 @@ import os
 import re
 import time
 try:
-    from src.notifier import DiscordNotifier
+    from src.notifier import NotificationManager
 except ImportError:
-    from notifier import DiscordNotifier
+    from notifier import NotificationManager
 
 # Configure logging
 logging.basicConfig(
@@ -30,20 +30,13 @@ class SteamMarketScanner:
         self.base_url = "https://steamcommunity.com/market/priceoverview/"
         self.config = self._load_config()
         self.items_to_scan = self.config.get("items", [])
-
-        webhook_url = self.config.get("notifications", {}).get("discord_webhook_url")
-        self.notifier = DiscordNotifier(webhook_url)
-
+        self.notifier = NotificationManager(self.config)
         logger.info("SteamMarketScanner initialized.")
 
     def _load_config(self):
-        """
-        Loads the configuration from the JSON file.
-        """
         if not os.path.exists(self.config_path):
             logger.warning(f"Configuration file not found: {self.config_path}")
             return {}
-
         try:
             with open(self.config_path, 'r') as f:
                 return json.load(f)
@@ -52,53 +45,29 @@ class SteamMarketScanner:
             return {}
 
     def _parse_price(self, price_str):
-        """
-        Parses a price string (e.g., "$15.00", "15,00€", "$1,200.50") into a float.
-        """
         if not price_str:
             return 0.0
-
         cleaned = re.sub(r'[^\d,.]', '', price_str)
-
         if ',' in cleaned and '.' in cleaned:
             cleaned = cleaned.replace(',', '')
         elif ',' in cleaned:
             cleaned = cleaned.replace(',', '.')
-
         try:
             return float(cleaned)
         except ValueError:
-            logger.error(f"Could not parse price string: {price_str}")
             return 0.0
 
     def fetch_item_price(self, app_id, market_hash_name, currency=1):
-        """
-        Fetches the current price of an item from the Steam Market.
-        """
-        params = {
-            "appid": app_id,
-            "market_hash_name": market_hash_name,
-            "currency": currency
-        }
-
+        params = {"appid": app_id, "market_hash_name": market_hash_name, "currency": currency}
         try:
             response = requests.get(self.base_url, params=params)
             response.raise_for_status()
             data = response.json()
-
-            if data.get("success"):
-                return data
-            else:
-                logger.warning(f"Failed to fetch price for {market_hash_name}: Success flag False")
-                return None
-        except requests.RequestException as e:
-            logger.error(f"Error fetching price for {market_hash_name}: {e}")
+            return data if data.get("success") else None
+        except requests.RequestException:
             return None
 
     def analyze_opportunity(self, item_config, price_data):
-        """
-        Analyzes a single item for arbitrage opportunities.
-        """
         lowest_price = self._parse_price(price_data.get("lowest_price"))
         target_buy_price = item_config.get("target_buy_price", 0.0)
         min_profit_margin = item_config.get("min_profit_margin", 0.0)
@@ -106,7 +75,6 @@ class SteamMarketScanner:
         if lowest_price > 0 and lowest_price <= target_buy_price:
             profit = target_buy_price - lowest_price
             margin = profit / target_buy_price if target_buy_price > 0 else 0
-
             if margin >= min_profit_margin:
                 opp = {
                     "item": item_config.get("market_hash_name"),
@@ -120,9 +88,6 @@ class SteamMarketScanner:
         return None
 
     def scan_market(self, delay=1.0):
-        """
-        Scans the market for all items defined in the configuration.
-        """
         logger.info(f"Scanning market for {len(self.items_to_scan)} items.")
         opportunities = []
         for item in self.items_to_scan:
@@ -134,9 +99,8 @@ class SteamMarketScanner:
                     opp = self.analyze_opportunity(item, price_data)
                     if opp:
                         opportunities.append(opp)
-                        self.notifier.send_notification(opp)
+                        self.notifier.notify_all(opp)
                 time.sleep(delay)
-
         logger.info(f"Scan complete. Found {len(opportunities)} opportunities.")
         return opportunities
 

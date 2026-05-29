@@ -11,15 +11,17 @@
             "market_hash_name": "Clutch Case",
             "target_buy_price": 0.50,
             "min_profit_margin": 0.15
-        },
-        {
-            "app_id": 570,
-            "market_hash_name": "Immortal Treasure I 2020",
-            "target_buy_price": 1.00,
-            "min_profit_margin": 0.20
         }
     ],
     "notifications": {
-        "discord_webhook_url": ""
+        "discord_webhook_url": "",
+        "email": {
+            "enabled": false,
+            "sender": "",
+            "password": "",
+            "receiver": "",
+            "smtp_server": "smtp.gmail.com",
+            "smtp_port": 587
+        }
     }
 }

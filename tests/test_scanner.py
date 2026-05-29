@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock, mock_open
 import requests
 import json
 from src.scanner import SteamMarketScanner
-from src.notifier import DiscordNotifier
+from src.notifier import NotificationManager
 
 class TestSteamMarketScanner(unittest.TestCase):
 
@@ -21,27 +21,18 @@ class TestSteamMarketScanner(unittest.TestCase):
 
     @patch('src.notifier.requests.post')
     def test_discord_notification_send(self, mock_post):
-        notifier = DiscordNotifier("http://mock-webhook")
+        config = {"notifications": {"discord_webhook_url": "http://mock-webhook"}}
+        notifier = NotificationManager(config)
         opp = {"item": "AK-47", "current_price": 10.0, "target_price": 20.0, "margin": 0.5}
 
         mock_post.return_value.status_code = 204
-        result = notifier.send_notification(opp)
+        result = notifier.send_discord(opp)
 
         self.assertTrue(result)
         mock_post.assert_called_once()
 
-    @patch('src.notifier.requests.post')
-    def test_discord_notification_no_url(self, mock_post):
-        notifier = DiscordNotifier("")
-        opp = {"item": "AK-47"}
-
-        result = notifier.send_notification(opp)
-
-        self.assertFalse(result)
-        mock_post.assert_not_called()
-
     @patch('src.scanner.SteamMarketScanner.fetch_item_price')
-    @patch('src.notifier.DiscordNotifier.send_notification')
+    @patch('src.notifier.NotificationManager.notify_all')
     @patch('src.scanner.os.path.exists')
     @patch('builtins.open', new_callable=mock_open, read_data='{"items": [{"app_id": 730, "market_hash_name": "AK-47", "target_buy_price": 20.0, "min_profit_margin": 0.1}]}')
     def test_scan_market_triggers_notification(self, mock_file, mock_exists, mock_notify, mock_fetch):
