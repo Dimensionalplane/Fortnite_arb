@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"backend/orchestration"
 )
 
 type SubmoduleStatus struct {
@@ -18,14 +19,15 @@ func handleSystemStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
+	statuses := []SubmoduleStatus{}
+
 	out, err := exec.Command("git", "submodule", "status", "--recursive").Output()
 	if err != nil {
-		json.NewEncoder(w).Encode([]SubmoduleStatus{})
+		json.NewEncoder(w).Encode(statuses)
 		return
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var statuses []SubmoduleStatus
 	for _, line := range lines {
 		if line == "" {
 			continue
@@ -51,29 +53,14 @@ func handleSystemStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(statuses)
 }
 
-func handleCheckSession(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "active", "session": "default"})
-}
-
-func handleIssues(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode([]string{})
-}
-
-func handleIndexCodebase(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"indexed": true})
-}
-
 func main() {
+	// Start the Shadow Pilot Diff Monitor
+	orchestration.StartDiffMonitor()
+
 	http.HandleFunc("/api/system/status", handleSystemStatus)
-	http.HandleFunc("/api/check-session", handleCheckSession)
-	http.HandleFunc("/api/issues", handleIssues)
-	http.HandleFunc("/api/index-codebase", handleIndexCodebase)
+	http.HandleFunc("/api/check-session", orchestration.HandleCheckSession)
+	http.HandleFunc("/api/issues", orchestration.HandleIssues)
+	http.HandleFunc("/api/index-codebase", orchestration.HandleIndexCodebase)
 	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "OK")
 	})
