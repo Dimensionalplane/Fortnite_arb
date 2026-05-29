@@ -1,5 +1,7 @@
 import logging
 import requests
+import json
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -17,10 +19,30 @@ class SteamMarketScanner:
     A scanner for the Steam Market to identify arbitrage opportunities.
     """
 
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, config_path="config/items.json"):
         self.api_key = api_key
+        self.config_path = config_path
         self.base_url = "https://steamcommunity.com/market/priceoverview/"
+        self.items_to_scan = self._load_config()
         logger.info("SteamMarketScanner initialized.")
+
+    def _load_config(self):
+        """
+        Loads the list of items to scan from the configuration file.
+        """
+        if not os.path.exists(self.config_path):
+            logger.warning(f"Configuration file not found: {self.config_path}")
+            return []
+
+        try:
+            with open(self.config_path, 'r') as f:
+                config = json.load(f)
+                items = config.get("items", [])
+                logger.info(f"Loaded {len(items)} items from configuration.")
+                return items
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Error loading configuration: {e}")
+            return []
 
     def fetch_item_price(self, app_id, market_hash_name, currency=1):
         """
@@ -48,10 +70,21 @@ class SteamMarketScanner:
             logger.error(f"Error fetching price for {market_hash_name}: {e}")
             return None
 
-    def scan_market(self, app_id):
+    def scan_market(self):
         """
-        Scans the market for a given application ID.
+        Scans the market for all items defined in the configuration.
         """
-        logger.info(f"Scanning market for App ID: {app_id}")
-        # Placeholder for scanning multiple items
-        return []
+        logger.info(f"Scanning market for {len(self.items_to_scan)} items.")
+        results = []
+        for item in self.items_to_scan:
+            app_id = item.get("app_id")
+            market_hash_name = item.get("market_hash_name")
+            if app_id and market_hash_name:
+                price_data = self.fetch_item_price(app_id, market_hash_name)
+                if price_data:
+                    results.append({
+                        "item": market_hash_name,
+                        "app_id": app_id,
+                        "price_data": price_data
+                    })
+        return results
