@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"path/filepath"
+	"os"
 )
 
 type ScanResponse struct {
@@ -21,10 +23,19 @@ func HandleManualScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve absolute path to scanner.py
+	cwd, _ := os.Getwd()
+	scannerPath := filepath.Join(filepath.Dir(cwd), "src/scanner.py")
+	if _, err := os.Stat(scannerPath); os.IsNotExist(err) {
+		scannerPath = "src/scanner.py"
+	}
+
 	// Trigger scan asynchronously
 	go func() {
-		fmt.Println("[SCAN] Manual scan triggered via API...")
-		cmd := exec.Command("python3", "src/scanner.py")
+		fmt.Printf("[SCAN] Manual scan triggered via API for %s...\n", scannerPath)
+		cmd := exec.Command("python3", scannerPath)
+		// Set PYTHONPATH so absolute imports work
+		cmd.Env = append(os.Environ(), "PYTHONPATH=" + filepath.Dir(filepath.Dir(scannerPath)))
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("[SCAN] Manual scan failed: %v\nOutput: %s\n", err, string(out))
