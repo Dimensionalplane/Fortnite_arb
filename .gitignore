@@ -37,3 +37,5 @@ steam_api_key.txt
 scanner.log
 backend.log
 backend/main
+data/
+deployment.log
