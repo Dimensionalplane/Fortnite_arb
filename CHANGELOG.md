@@ -1,11 +1,14 @@
 # CHANGELOG
 
-## [0.7.0] - 2024-05-29
+## [1.0.0] - 2024-05-29
 ### Added
-- Multi-channel notification support (Discord and Email).
-- Unified NotificationManager for centralized alert handling.
+- First stable release of Digital Asset Arbitrage bot.
+- End-to-end test suite (`tests/e2e_scanner.py`) for live market verification.
+- Enhanced robustness: timeout and network error handling in scanner.
+- Improved reliability: retry logic with exponential backoff for Discord notifications.
+- Aggregated scan summary reports.
 
-## [0.6.0] - 2024-05-29
+## [0.9.0] - 2024-05-29
 ### Added
-- Shadow Pilot Git Diff Monitoring in Go backend.
-- Full orchestration parity for session and issue management.
+- Configuration management and manual scan trigger APIs.
+- ConfigurationEditor React component.

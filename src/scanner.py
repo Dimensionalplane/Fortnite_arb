@@ -63,11 +63,15 @@ class SteamMarketScanner:
     def fetch_item_price(self, app_id, market_hash_name, currency=1):
         params = {"appid": app_id, "market_hash_name": market_hash_name, "currency": currency}
         try:
-            response = requests.get(self.base_url, params=params)
+            response = requests.get(self.base_url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             return data if data.get("success") else None
-        except requests.RequestException:
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            logger.error(f"Network error fetching {market_hash_name}: {e}")
+            return None
+        except requests.RequestException as e:
+            logger.error(f"Error fetching price for {market_hash_name}: {e}")
             return None
 
     def analyze_opportunity(self, item_config, price_data):

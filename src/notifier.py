@@ -1,6 +1,7 @@
 import logging
 import requests
 import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -15,6 +16,22 @@ class NotificationManager:
         self.config = config.get("notifications", {})
         self.discord_url = self.config.get("discord_webhook_url")
         self.email_config = self.config.get("email", {})
+
+    def _post_with_retry(self, url, json_payload, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=json_payload, timeout=10)
+                if response.status_code >= 500:
+                    logger.warning(f"Server error {response.status_code}. Retrying...")
+                else:
+                    response.raise_for_status()
+                    return True
+            except requests.RequestException as e:
+                logger.error(f"Attempt {attempt + 1} failed: {e}")
+
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt) # Exponential backoff
+        return False
 
     def send_discord(self, opportunity):
         if not self.discord_url:
@@ -34,18 +51,12 @@ class NotificationManager:
                 "footer": {"text": "Steam Market Arb Bot"}
             }]
         }
-        try:
-            requests.post(self.discord_url, json=payload).raise_for_status()
+        success = self._post_with_retry(self.discord_url, payload)
+        if success:
             logger.info(f"Discord alert sent for {opportunity['item']}")
-            return True
-        except Exception as e:
-            logger.error(f"Discord error: {e}")
-            return False
+        return success
 
     def send_summary_report(self, opportunities):
-        """
-        Sends an aggregated report of all opportunities found in a single scan.
-        """
         if not self.discord_url or not opportunities:
             return False
 
@@ -56,19 +67,12 @@ class NotificationManager:
         payload = {
             "embeds": [{
                 "title": f"📊 Scan Summary: {len(opportunities)} Opportunities Found",
-                "color": 3447003, # Blue
+                "color": 3447003,
                 "fields": fields[:25],
                 "footer": {"text": "Steam Market Arb Bot"}
             }]
         }
-
-        try:
-            requests.post(self.discord_url, json=payload).raise_for_status()
-            logger.info(f"Scan summary report sent to Discord with {len(opportunities)} items.")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send summary report: {e}")
-            return False
+        return self._post_with_retry(self.discord_url, payload)
 
     def send_email(self, opportunity):
         if not self.email_config.get("enabled"):
@@ -83,7 +87,7 @@ class NotificationManager:
             body = f"Arbitrage Opportunity Found!\n\nItem: {opportunity['item']}\nMargin: {opportunity['margin']:.2%}"
             msg.attach(MIMEText(body, 'plain'))
 
-            server = smtplib.SMTP(self.email_config.get("smtp_server"), self.email_config.get("smtp_port"))
+            server = smtplib.SMTP(self.email_config.get("smtp_server"), self.email_config.get("smtp_port"), timeout=15)
             server.starttls()
             server.login(self.email_config.get("sender"), self.email_config.get("password"))
             server.send_message(msg)
