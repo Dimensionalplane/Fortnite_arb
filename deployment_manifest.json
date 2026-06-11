@@ -1,0 +1,12 @@
+{
+  "project": "Digital Asset Arbitrage Bot",
+  "version": "1.1.0",
+  "deployment_date": "Thu Jun 11 23:03:29 UTC 2026",
+  "environment": "production",
+  "components": [
+    { "name": "Go Backend", "port": 8080, "health_endpoint": "/api/health" },
+    { "name": "Python Scanner", "interval": "1h", "script": "scripts/auto_scan.sh" },
+    { "name": "React Dashboard", "dist": "frontend/dist" }
+  ],
+  "status": "scheduled"
+}
