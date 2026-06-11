@@ -1,1 +1,18 @@
-[]
+[
+    {
+        "item": "AK-47 | Redline (Field-Tested)",
+        "app_id": 730,
+        "current_price": 42.98,
+        "target_price": 1000.0,
+        "margin": 0.95702,
+        "timestamp": "2026-06-11T22:00:20.612432"
+    },
+    {
+        "item": "AK-47 | Redline (Field-Tested)",
+        "app_id": 730,
+        "current_price": 42.98,
+        "target_price": 1000.0,
+        "margin": 0.95702,
+        "timestamp": "2026-06-11T22:08:07.717052"
+    }
+]

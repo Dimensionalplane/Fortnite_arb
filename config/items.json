@@ -3,25 +3,11 @@
         {
             "app_id": 730,
             "market_hash_name": "AK-47 | Redline (Field-Tested)",
-            "target_buy_price": 15.00,
-            "min_profit_margin": 0.10
-        },
-        {
-            "app_id": 730,
-            "market_hash_name": "Clutch Case",
-            "target_buy_price": 0.50,
-            "min_profit_margin": 0.15
+            "min_profit_margin": 0.01,
+            "target_buy_price": 1000
         }
     ],
     "notifications": {
-        "discord_webhook_url": "",
-        "email": {
-            "enabled": false,
-            "sender": "",
-            "password": "",
-            "receiver": "",
-            "smtp_server": "smtp.gmail.com",
-            "smtp_port": 587
-        }
+        "discord_webhook_url": ""
     }
 }
