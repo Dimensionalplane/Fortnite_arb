@@ -23,29 +23,26 @@ func HandleManualScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve absolute path to scanner.py
 	cwd, _ := os.Getwd()
-	scannerPath := filepath.Join(filepath.Dir(cwd), "src/scanner.py")
-	if _, err := os.Stat(scannerPath); os.IsNotExist(err) {
-		scannerPath = "src/scanner.py"
-	}
+	// Go up one from 'backend' to get root
+	rootDir := filepath.Dir(cwd)
+	enginePath := filepath.Join(rootDir, "src/trading/engine.py")
 
-	// Trigger scan asynchronously
 	go func() {
-		fmt.Printf("[SCAN] Manual scan triggered via API for %s...\n", scannerPath)
-		cmd := exec.Command("python3", scannerPath)
-		// Set PYTHONPATH so absolute imports work
-		cmd.Env = append(os.Environ(), "PYTHONPATH=" + filepath.Dir(filepath.Dir(scannerPath)))
+		fmt.Printf("[TRADING] Manual cycle triggered via API for %s...\n", enginePath)
+		cmd := exec.Command("python3", enginePath)
+		// Root is PYTHONPATH
+		cmd.Env = append(os.Environ(), "PYTHONPATH=" + rootDir)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("[SCAN] Manual scan failed: %v\nOutput: %s\n", err, string(out))
+			fmt.Printf("[TRADING] Cycle failed: %v\nOutput: %s\n", err, string(out))
 		} else {
-			fmt.Println("[SCAN] Manual scan completed successfully.")
+			fmt.Println("[TRADING] Cycle completed successfully.")
 		}
 	}()
 
 	resp := ScanResponse{
-		Message: "Manual market scan initiated in the background.",
+		Message: "Trading cycle initiated in the background.",
 		Success: true,
 	}
 	json.NewEncoder(w).Encode(resp)
