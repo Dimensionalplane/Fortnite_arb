@@ -70,5 +70,21 @@
         "target_price": 1000,
         "margin": 0.9570599999999999,
         "timestamp": "2026-06-12T18:43:58.322015"
+    },
+    {
+        "item": "AK-47 | Redline (Field-Tested)",
+        "app_id": 730,
+        "current_price": 42.96,
+        "target_price": 1000,
+        "margin": 0.95704,
+        "timestamp": "2026-06-12T21:41:24.767150"
+    },
+    {
+        "item": "Immortal Treasure I 2020",
+        "app_id": 570,
+        "current_price": 1.2,
+        "target_price": 100,
+        "margin": 0.988,
+        "timestamp": "2026-06-12T21:41:24.767766"
     }
 ]
