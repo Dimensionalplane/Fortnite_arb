@@ -1,9 +1,9 @@
 import logging
-import requests
+import aiohttp
+import asyncio
 import json
 import os
 import re
-import time
 from datetime import datetime
 
 try:
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class SteamMarketScanner:
     """
-    A scanner for the Steam Market to identify arbitrage opportunities.
+    An asynchronous scanner for the Steam Market.
     """
 
     def __init__(self, config_path="config/items.json", history_path="data/scan_history.json"):
@@ -34,7 +34,7 @@ class SteamMarketScanner:
         self.config = self._load_config()
         self.items_to_scan = self.config.get("items", [])
         self.notifier = NotificationManager(self.config)
-        logger.info("SteamMarketScanner initialized.")
+        logger.info("SteamMarketScanner (Async) initialized.")
 
     def _load_config(self):
         if not os.path.exists(self.config_path):
@@ -60,18 +60,18 @@ class SteamMarketScanner:
         except ValueError:
             return 0.0
 
-    def fetch_item_price(self, app_id, market_hash_name, currency=1):
+    async def fetch_item_price(self, session, app_id, market_hash_name, currency=1):
         params = {"appid": app_id, "market_hash_name": market_hash_name, "currency": currency}
         try:
-            response = requests.get(self.base_url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data if data.get("success") else None
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
-            logger.error(f"Network error fetching {market_hash_name}: {e}")
-            return None
-        except requests.RequestException as e:
-            logger.error(f"Error fetching price for {market_hash_name}: {e}")
+            async with session.get(self.base_url, params=params, timeout=10) as response:
+                if response.status == 429:
+                    logger.error("Rate limit hit (429).")
+                    return None
+                response.raise_for_status()
+                data = await response.json()
+                return data if data.get("success") else None
+        except Exception as e:
+            logger.error(f"Error fetching {market_hash_name}: {e}")
             return None
 
     def analyze_opportunity(self, item_config, price_data):
@@ -98,7 +98,6 @@ class SteamMarketScanner:
     def _save_to_history(self, opportunities):
         if not opportunities:
             return
-
         history = []
         if os.path.exists(self.history_path):
             try:
@@ -111,7 +110,6 @@ class SteamMarketScanner:
 
         history.extend(opportunities)
         history = history[-100:]
-
         try:
             os.makedirs(os.path.dirname(self.history_path), exist_ok=True)
             with open(self.history_path, 'w') as f:
@@ -120,23 +118,26 @@ class SteamMarketScanner:
         except IOError as e:
             logger.error(f"Failed to save history: {e}")
 
-    def scan_market(self, delay=1.0):
-        logger.info(f"Scanning market for {len(self.items_to_scan)} items.")
+    async def scan_market(self):
+        logger.info(f"Scanning market for {len(self.items_to_scan)} items asynchronously.")
         opportunities = []
-        for item in self.items_to_scan:
-            app_id = item.get("app_id")
-            market_hash_name = item.get("market_hash_name")
-            if app_id and market_hash_name:
-                price_data = self.fetch_item_price(app_id, market_hash_name)
+
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            for item in self.items_to_scan:
+                tasks.append(self.fetch_item_price(session, item.get("app_id"), item.get("market_hash_name")))
+
+            # Execute all tasks. In production, we might want to chunk these to avoid immediate 429s.
+            results = await asyncio.gather(*tasks)
+
+            for item, price_data in zip(self.items_to_scan, results):
                 if price_data:
                     opp = self.analyze_opportunity(item, price_data)
                     if opp:
                         opportunities.append(opp)
-                        self.notifier.notify_all(opp)
-                time.sleep(delay)
 
         if opportunities:
-            self.notifier.send_summary_report(opportunities)
+            await self.notifier.notify_all(opportunities)
             self._save_to_history(opportunities)
 
         logger.info(f"Scan complete. Found {len(opportunities)} opportunities.")
@@ -144,4 +145,4 @@ class SteamMarketScanner:
 
 if __name__ == "__main__":
     scanner = SteamMarketScanner()
-    scanner.scan_market()
+    asyncio.run(scanner.scan_market())

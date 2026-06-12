@@ -1,12 +1,13 @@
 # CHANGELOG
 
+## [1.2.0] - 2024-05-29
+### Added
+- Asynchronous market scanning using `asyncio` and `aiohttp`.
+- Parallel notification delivery in `NotificationManager`.
+- Significant performance improvements for high-volume scans.
+- Updated unit and E2E test suites for async compatibility.
+
 ## [1.1.0] - 2024-05-29
 ### Added
-- Staging verification suite (`scripts/staging_test.sh`).
-- Final stability fixes for API path resolution and PYTHONPATH.
-- Verified manual scan triggers and history persistence.
-
-## [1.0.0] - 2024-05-29
-### Added
-- First stable release of Digital Asset Arbitrage bot.
-- End-to-end test suite for live market verification.
+- Staging verification suite.
+- Stability fixes for production readiness.

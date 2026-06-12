@@ -1,5 +1,6 @@
 import logging
-import requests
+import aiohttp
+import asyncio
 import smtplib
 import time
 from email.mime.text import MIMEText
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class NotificationManager:
     """
-    Manages multiple notification channels (Discord, Email).
+    Manages multiple notification channels (Discord, Email) asynchronously.
     """
 
     def __init__(self, config):
@@ -17,23 +18,23 @@ class NotificationManager:
         self.discord_url = self.config.get("discord_webhook_url")
         self.email_config = self.config.get("email", {})
 
-    def _post_with_retry(self, url, json_payload, max_retries=3):
+    async def _post_with_retry(self, session, url, json_payload, max_retries=3):
         for attempt in range(max_retries):
             try:
-                response = requests.post(url, json=json_payload, timeout=10)
-                if response.status_code >= 500:
-                    logger.warning(f"Server error {response.status_code}. Retrying...")
-                else:
-                    response.raise_for_status()
-                    return True
-            except requests.RequestException as e:
+                async with session.post(url, json=json_payload, timeout=10) as response:
+                    if response.status >= 500:
+                        logger.warning(f"Server error {response.status}. Retrying...")
+                    else:
+                        response.raise_for_status()
+                        return True
+            except Exception as e:
                 logger.error(f"Attempt {attempt + 1} failed: {e}")
 
             if attempt < max_retries - 1:
-                time.sleep(2 ** attempt) # Exponential backoff
+                await asyncio.sleep(2 ** attempt)
         return False
 
-    def send_discord(self, opportunity):
+    async def send_discord(self, session, opportunity):
         if not self.discord_url:
             return False
 
@@ -51,12 +52,12 @@ class NotificationManager:
                 "footer": {"text": "Steam Market Arb Bot"}
             }]
         }
-        success = self._post_with_retry(self.discord_url, payload)
+        success = await self._post_with_retry(session, self.discord_url, payload)
         if success:
             logger.info(f"Discord alert sent for {opportunity['item']}")
         return success
 
-    def send_summary_report(self, opportunities):
+    async def send_summary_report(self, session, opportunities):
         if not self.discord_url or not opportunities:
             return False
 
@@ -72,12 +73,18 @@ class NotificationManager:
                 "footer": {"text": "Steam Market Arb Bot"}
             }]
         }
-        return self._post_with_retry(self.discord_url, payload)
+        return await self._post_with_retry(session, self.discord_url, payload)
 
-    def send_email(self, opportunity):
+    async def send_email(self, opportunity):
         if not self.email_config.get("enabled"):
             return False
 
+        # Email sending is still blocking in this implementation as smtplib doesn't natively support asyncio.
+        # We wrap it in a thread to prevent blocking the event loop.
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._send_email_sync, opportunity)
+
+    def _send_email_sync(self, opportunity):
         try:
             msg = MIMEMultipart()
             msg['From'] = self.email_config.get("sender")
@@ -98,6 +105,18 @@ class NotificationManager:
             logger.error(f"Email error: {e}")
             return False
 
-    def notify_all(self, opportunity):
-        self.send_discord(opportunity)
-        self.send_email(opportunity)
+    async def notify_all(self, opportunities):
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            # For each opportunity, send a discord alert and an email
+            if isinstance(opportunities, list):
+                # We usually get the full list for summary
+                tasks.append(self.send_summary_report(session, opportunities))
+                for opp in opportunities:
+                    tasks.append(self.send_email(opp))
+            else:
+                # Handle single opportunity
+                tasks.append(self.send_discord(session, opportunities))
+                tasks.append(self.send_email(opportunities))
+
+            await asyncio.gather(*tasks)

@@ -13,7 +13,7 @@
 - [x] Implement arbitrage history tracking.
 - [x] Enhance robustness with network error handling and retries.
 - [x] Conduct staging integration testing.
-- [ ] Implement asynchronous scanning for performance.
+- [x] Implement asynchronous scanning for performance.
 - [ ] Add item-specific currency support.
 
 ## Bug Fixes
