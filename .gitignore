@@ -40,3 +40,4 @@ backend/main
 data/
 deployment.log
 live_trial.log
+validation.log
