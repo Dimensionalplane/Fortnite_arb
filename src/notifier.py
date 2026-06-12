@@ -120,3 +120,21 @@ class NotificationManager:
                 tasks.append(self.send_email(opportunities))
 
             await asyncio.gather(*tasks)
+
+    async def send_runtime_error(self, error_message):
+        """
+        Sends an urgent alert if a runtime error is detected.
+        """
+        if not self.discord_url:
+            return False
+
+        payload = {
+            "embeds": [{
+                "title": "❌ CRITICAL: Scanner Runtime Error",
+                "color": 15158332, # Red
+                "description": f"An error occurred during the scanning process:\n```\n{error_message}\n```",
+                "footer": {"text": "Steam Market Arb Bot"}
+            }]
+        }
+        async with aiohttp.ClientSession() as session:
+            return await self._post_with_retry(session, self.discord_url, payload)

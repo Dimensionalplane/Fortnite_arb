@@ -98,6 +98,7 @@ class SteamMarketScanner:
     def _save_to_history(self, opportunities):
         if not opportunities:
             return
+
         history = []
         if os.path.exists(self.history_path):
             try:
@@ -122,23 +123,26 @@ class SteamMarketScanner:
         logger.info(f"Scanning market for {len(self.items_to_scan)} items asynchronously.")
         opportunities = []
 
-        async with aiohttp.ClientSession() as session:
-            tasks = []
-            for item in self.items_to_scan:
-                tasks.append(self.fetch_item_price(session, item.get("app_id"), item.get("market_hash_name")))
+        try:
+            async with aiohttp.ClientSession() as session:
+                tasks = []
+                for item in self.items_to_scan:
+                    tasks.append(self.fetch_item_price(session, item.get("app_id"), item.get("market_hash_name")))
 
-            # Execute all tasks. In production, we might want to chunk these to avoid immediate 429s.
-            results = await asyncio.gather(*tasks)
+                results = await asyncio.gather(*tasks)
 
-            for item, price_data in zip(self.items_to_scan, results):
-                if price_data:
-                    opp = self.analyze_opportunity(item, price_data)
-                    if opp:
-                        opportunities.append(opp)
+                for item, price_data in zip(self.items_to_scan, results):
+                    if price_data:
+                        opp = self.analyze_opportunity(item, price_data)
+                        if opp:
+                            opportunities.append(opp)
 
-        if opportunities:
-            await self.notifier.notify_all(opportunities)
-            self._save_to_history(opportunities)
+            if opportunities:
+                await self.notifier.notify_all(opportunities)
+                self._save_to_history(opportunities)
+        except Exception as e:
+            logger.critical(f"Unhandled runtime error: {e}")
+            await self.notifier.send_runtime_error(str(e))
 
         logger.info(f"Scan complete. Found {len(opportunities)} opportunities.")
         return opportunities
