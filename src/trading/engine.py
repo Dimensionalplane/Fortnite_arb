@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import time
 from src.scanner import SteamMarketScanner
 
 logger = logging.getLogger(__name__)
@@ -15,24 +16,23 @@ class TradingEngine:
 
     async def run_cycle(self):
         """
-        Executes a single trading cycle: Scan -> Analyze -> (Future) Execute.
+        Executes a single trading cycle and measures latency.
         """
+        start_time = time.time()
         logger.info("Starting trading cycle...")
         opportunities = await self.scanner.scan_market()
 
+        latency = time.time() - start_time
+        logger.info(f"Cycle latency: {latency:.4f} seconds.")
+
         if opportunities:
             logger.info(f"Identified {len(opportunities)} profitable opportunities.")
-            for opp in opportunities:
-                # Execution logic will be implemented here
-                logger.info(f"Ready to execute trade for: {opp['item']}")
         else:
             logger.info("No profitable opportunities found in this cycle.")
 
+        return opportunities, latency
+
     async def start(self, interval=3600):
-        """
-        Starts the trading engine loop.
-        """
-        logger.info(f"TradingEngine loop started with interval of {interval} seconds.")
         while True:
             await self.run_cycle()
             await asyncio.sleep(interval)
