@@ -39,3 +39,4 @@ backend.log
 backend/main
 data/
 deployment.log
+live_trial.log
